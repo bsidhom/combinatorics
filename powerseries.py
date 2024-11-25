@@ -20,6 +20,18 @@ def main():
     print()
     for c in take(10, exp()):
         print(c)
+    print()
+    for c in take(10, z()(zpow(1))):
+        print(c)
+    print()
+    for c in take(10, powerset_n(z() + zpow(2), 10)):
+        print(c)
+    print()
+    for c in take(10, powerset_n(6 * z(), 100)):
+        print(c)
+    print()
+    for c in take(10, multiset_n(6 * z(), 10)):
+        print(c)
 
 
 A = TypeVar("A", int, Fraction)
@@ -82,6 +94,61 @@ def exp() -> PowerSeries[Fraction]:
     return IterableSeries(IterableWrapper(gen), Fraction, fractional_div)
 
 
+def iterated_series(f: PowerSeries[A],
+                    map_func: Callable[[int], A]) -> PowerSeries[A]:
+    # The idea here is for the caller to provide a map_func which takes in a
+    # power of z called k) and returns a function which is used to map the
+    # resulting coefficients of the input series of z^k. This can be used to
+    # replace the truncated powerset/multiset constructions; those are only
+    # truncated because we do not currently have a way to represent an infinite
+    # sum of series (which are themselves infinite).
+    raise Exception("unimplemented")
+
+
+def powerset_n(f: PowerSeries[A], n: int) -> PowerSeries[Fraction]:
+    f_frac = f.to_frac()
+
+    def inner_func(k: int) -> PowerSeries[Fraction]:
+        arg = zpow(k).to_frac()
+        series = Fraction(1, k) * f_frac(arg)
+        return series if k % 2 != 0 else -series
+
+    inner_series = map(inner_func, range(1, n + 1))
+    g = series_sum(inner_series)
+    return exp()(g)
+
+
+def multiset_n(f: PowerSeries[A], n: int) -> PowerSeries[Fraction]:
+    f_frac = f.to_frac()
+
+    def inner_func(k: int) -> PowerSeries[Fraction]:
+        arg = zpow(k).to_frac()
+        return Fraction(1, k) * f_frac(arg)
+
+    inner_series = map(inner_func, range(1, n + 1))
+    g = series_sum(inner_series)
+    return exp()(g)
+
+
+def series_sum(series: Iterable[PowerSeries[A]]) -> PowerSeries[A]:
+    # Annoyingly, we have to write our own series sum wrapper because the
+    # built-in `sum` function requires arbitrary types to be `__radd__`-able to
+    # the integer value 0, which it uses as the seed. Note that our PowerSeries
+    # type is designed as a proper monoid, so we get the zero value from the
+    # series itself rather than providing some arbitrary seed. However, since we
+    # can't do type-level programming in Python, we require the input to be
+    # non-empty and can effectively only treat it as a semigroup anyway.
+    it = iter(series)
+    try:
+        s = next(it)
+    except StopIteration:
+        raise Exception(
+            "series_sum can only be used with a non-empty sequence of series")
+    for f in it:
+        s += f
+    return s
+
+
 class PowerSeries(ABC, Generic[A]):
     @abstractmethod
     def zero(self) -> A:
@@ -109,6 +176,9 @@ class PowerSeries(ABC, Generic[A]):
 
     def __mul__(self, other: PowerSeries[A]) -> PowerSeries[A]:
         return Multiplication(self, other)
+
+    def __rmul__(self, other: A) -> PowerSeries[A]:
+        return MappedSeries(self, lambda x: other * x, self.zero, self.div)
 
     def __truediv__(self, other: PowerSeries[A]) -> PowerSeries[A]:
         return Division(self, other)
@@ -258,11 +328,11 @@ class Composition(PowerSeries[A]):
         for n in itertools.count(1):
             fs.append(next(f))
             gs.append(next(g))
-            c = [0] * n
+            c = [self._g.zero() for _ in range(n)]
             c[0] = gs[n]
             for k in range(2, n + 1):
                 for i in range(1, n - k + 2):
-                    c[i - 1] += gs[i] * cs[n - i - 1][k - 2]
+                    c[k - 1] += gs[i] * cs[n - i - 1][k - 2]
             hn = self._f.zero()
             for m in range(1, n + 1):
                 hn += fs[m] * c[m - 1]
