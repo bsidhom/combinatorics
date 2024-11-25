@@ -11,25 +11,30 @@ from typing import Callable, Generic, Iterable, Iterator, Type, TypeVar
 
 
 def main():
+    # Solve the famous "change-making" problem using generating functions.
     pennies = one() / (one() - zpow(1))
     nickels = one() / (one() - zpow(5))
     dimes = one() / (one() - zpow(10))
     quarters = one() / (one() - zpow(25))
-    for c in take(100, pennies * nickels * dimes * quarters):
-        print(c)
+    change = pennies * nickels * dimes * quarters
+    print("Ways to make change of 99 cents:", nth(99, change))
     print()
-    for c in take(10, exp()):
-        print(c)
-    print()
+    # Verify that identity-composition works as expected.
     for c in take(10, z()(zpow(1))):
         print(c)
     print()
+    # Powerset construction with one unique item of size 1 and another of size
+    # 2.
     for c in take(10, powerset_n(z() + zpow(2), 10)):
         print(c)
     print()
+    # Powerset construction with exactly 6 unique elements, each of size 1.
+    # Note that we expect to find C(6, n) subsets of size n within the powerset,
+    # where C(n, k) is the binomial coefficient "n choose k".
     for c in take(10, powerset_n(6 * z(), 100)):
         print(c)
     print()
+    # Multiset construction with exactly 6 unique elements, each of size 1.
     for c in take(10, multiset_n(6 * z(), 10)):
         print(c)
 
@@ -51,6 +56,15 @@ def take(n: int, items: Iterable[T]) -> Iterable[T]:
             yield value
 
     return IterableWrapper(make_iterator)
+
+
+def nth(n: int, items: Iterable[T]) -> T:
+    i = 0
+    for item in items:
+        if i == n:
+            return item
+        i += 1
+    raise Exception("not enough elements for nth")
 
 
 def one() -> PowerSeries[int]:
@@ -149,6 +163,13 @@ def series_sum(series: Iterable[PowerSeries[A]]) -> PowerSeries[A]:
     return s
 
 
+# The top-level "interface" type for power series, with some convenience methods
+# that allow us to perform high-level operations directly on series objects.
+# Note that the `zero()` and `div()` methods are only used to make this work
+# generically across different numeric types. In our use cases, we are typically
+# interested in exact solutions to combinatorial problems, which means we're
+# working in a discrete space. Consequently, this only supports int and Fraction
+# at the moment.
 class PowerSeries(ABC, Generic[A]):
     @abstractmethod
     def zero(self) -> A:
@@ -254,6 +275,7 @@ class Multiplication(PowerSeries[A]):
         return self._f.div(num, denom)
 
     def __iter__(self) -> Iterator[A]:
+        # Compute the product of 2 power series using a Cauchy convolution.
         f = iter(self._f)
         g = iter(self._g)
         fs = []
@@ -279,6 +301,8 @@ class Division(PowerSeries[A]):
         return self._f.div(num, denom)
 
     def __iter__(self) -> Iterator[A]:
+        # Compute a quotient of two power series h = f/g by considering the
+        # Cauchy convolution gh and solving for the implied coefficients of f.
         f = iter(self._f)
         g = iter(self._g)
         g0 = next(g)
@@ -315,6 +339,9 @@ class Composition(PowerSeries[A]):
         return self._f.div(num, denom)
 
     def __iter__(self) -> Iterator[A]:
+        # Take the composition f(g(z)), where both are power series. See the
+        # following post for an explanation of the algorithm:
+        # https://counting.club/posts/formal-power-series-composition/
         f = iter(self._f)
         g = iter(self._g)
         fs = []
@@ -357,6 +384,10 @@ class IterableSeries(PowerSeries[A]):
         return iter(self._it)
 
 
+# We want to treat _all_ power series as infinite iterables which can
+# themselves be reiterated arbitrarily. The IterableWrapper allows us to do
+# exactly this given the factory function for some iterable. Typically, this
+# factory will be powered by a Python generator under the hood.
 class IterableWrapper(Generic[T]):
     def __init__(self, f: Callable[[], Iterator[T]]):
         self._f = f
