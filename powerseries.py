@@ -11,21 +11,14 @@ from typing import Callable, Generic, Iterable, Iterator, Type, TypeVar
 
 
 def main():
-    # ys = finite([1])
-    # xs = finite([1, -2])
-    # for x in take(10, ys / xs):
-    #     print(x)
-    # f = one() / finite([1, -1])
-    # g = zpow(4)
-    # for c in take(1000, f(g)):
-    #     print(c)
-    # for c in take(1000, g):
-    #     print(c)
     pennies = one() / (one() - zpow(1))
     nickels = one() / (one() - zpow(5))
     dimes = one() / (one() - zpow(10))
     quarters = one() / (one() - zpow(25))
     for c in take(100, pennies * nickels * dimes * quarters):
+        print(c)
+    print()
+    for c in take(10, exp()):
         print(c)
 
 
@@ -35,7 +28,6 @@ T = TypeVar("T")
 
 
 def take(n: int, items: Iterable[T]) -> Iterable[T]:
-
     def make_iterator():
         it = iter(items)
         i = 0
@@ -70,12 +62,27 @@ def finite_frac(f: Iterable[Fraction]) -> PowerSeries[Fraction]:
     return Finite(f, Fraction, fractional_div)
 
 
+def alternating() -> PowerSeries[int]:
+    def gen():
+        positive = True
+        while True:
+            if positive:
+                yield 1
+            else:
+                yield -1
+
+    return IterableSeries(IterableWrapper(gen), int, integer_div)
+
+
 def exp() -> PowerSeries[Fraction]:
-    return Exponential()
+    def gen():
+        for n in itertools.count():
+            yield Fraction(1, math.factorial(n))
+
+    return IterableSeries(IterableWrapper(gen), Fraction, fractional_div)
 
 
 class PowerSeries(ABC, Generic[A]):
-
     @abstractmethod
     def zero(self) -> A:
         pass
@@ -111,7 +118,6 @@ class PowerSeries(ABC, Generic[A]):
 
 
 class Finite(PowerSeries[A]):
-
     def __init__(self, items: Iterable[A], type_: Type[A],
                  div: Callable[[A, A], A]):
         self._items = items
@@ -132,7 +138,6 @@ class Finite(PowerSeries[A]):
 
 
 class MappedSeries(PowerSeries[B]):
-
     def __init__(self, series: PowerSeries[A], f: Callable[[A], B],
                  zero: Callable[[], B], div: Callable[[B, B], B]):
         self._series = series
@@ -152,7 +157,6 @@ class MappedSeries(PowerSeries[B]):
 
 
 class Addition(PowerSeries[A]):
-
     def __init__(self, f: PowerSeries[A], g: PowerSeries[A]):
         self._f = f
         self._g = g
@@ -169,7 +173,6 @@ class Addition(PowerSeries[A]):
 
 
 class Multiplication(PowerSeries[A]):
-
     def __init__(self, f: PowerSeries[A], g: PowerSeries[A]):
         self._f = f
         self._g = g
@@ -195,7 +198,6 @@ class Multiplication(PowerSeries[A]):
 
 
 class Division(PowerSeries[A]):
-
     def __init__(self, f: PowerSeries[A], g: PowerSeries[A]):
         self._f = f
         self._g = g
@@ -232,7 +234,6 @@ class Division(PowerSeries[A]):
 
 
 class Composition(PowerSeries[A]):
-
     def __init__(self, f: PowerSeries[A], g: PowerSeries[A]):
         self._f = f
         self._g = g
@@ -259,65 +260,34 @@ class Composition(PowerSeries[A]):
             gs.append(next(g))
             c = [0] * n
             c[0] = gs[n]
-            for k in range(2, n+1):
+            for k in range(2, n + 1):
                 for i in range(1, n - k + 2):
-                    c[i-1] += gs[i] * cs[n-i-1][k-2]
-            hn = 0
+                    c[i - 1] += gs[i] * cs[n - i - 1][k - 2]
+            hn = self._f.zero()
             for m in range(1, n + 1):
                 hn += fs[m] * c[m - 1]
             cs.append(c)
             yield hn
-            # fs.append(next(f))
-            # gs.append(next(g))
-            # s = self._f.zero()
-            # for k in range(n):
-            #     # Add up all the ways to make this composition by adding a new
-            #     # element of size k to a previous one.
-            #     # s += hs[k] * gs[n - k]
-            #     s += fs[k] * xs[k] * gs[n - k]
-            # # As usual, we struggle with the fact that pyright doesn't know
-            # # this must be of type A.
-            # s += fs[n] * gs[n]
-            # # hn: A = s # type: ignore
-            # # hs.append(hn)
-            # # yield hn
-            # yield s
 
-# When computing the composition C(z) = B(A(z)), we have the following coefficients:
-# \begin{aligned}
-# c_n &= \sum_{k=0}^{n} b_k a_{j_{1}}a_{j_2}\cdots a_{j_k} \mid \sum_{i=1}^{k} a_{j_i} = n \\
-# c_0 &= b_0 \\
-# c_1 &= b_1 a_1 \\
-# c_2 &= b_1 a_2 + b_2 a_1 a_1 \\
-# c_3 &= b_1 a_3 + b_2 a_1 a_2 + b_2 a_2 a_1 + b_3 a_1 a_1 a_1 \\
-# c_4 &= b_1 a_4 + b_2 a_1 a_3 + b_2 a_2 a_2 + b_2 a_3 a_1 + b_3 a_1 a_1 a_2 + b_3 a_1 a_2 a_1 + b_3 a_2 a_1 a_1 + b_4 a_1 a_1 a_1 a_1
-# \end{aligned}
-#
-# Rewritten to factor the $b_i$s, we have:
-# c_1 &= b_1 a_1 \\
-# c_2 &= b_1 a_2 + b_2 a_1 a_1 \\
-# c_3 &= b_1 a_3 + b_2 (a_1 a_2 + a_2 a_1) + b_3 a_1 a_1 a_1 \\
-# c_4 &= b_1 a_4 + b_2 (a_1 a_3 + a_2 a_2 + a_3 a_1) + b_3 (a_1 a_1 a_2 + a_1 a_2 a_1 + a_2 a_1 a_1) + b_4 a_1 a_1 a_1 a_1
-#
-# Note that when computing c_n, you can either make an n-composition of n itself
-# by tacking on a_1 to a previous (n-1)-composition of (n-1), or else you can
-# add 1 to each index i of a_i in a k-composition of (n-1), where k < (n - 1).
 
-class Exponential(PowerSeries[Fraction]):
+class IterableSeries(PowerSeries[A]):
+    def __init__(self, it: Iterable[A], zero: Callable[[], A],
+                 div: Callable[[A, A], A]):
+        self._it = it
+        self._zero = zero
+        self._div = div
 
     def zero(self):
-        return Fraction()
+        return self._zero()
 
-    def div(self, num: Fraction, denom: Fraction) -> Fraction:
-        return fractional_div(num, denom)
+    def div(self, num: A, denom: A):
+        return self._div(num, denom)
 
-    def __iter__(self) -> Iterator[Fraction]:
-        for n in itertools.count():
-            yield Fraction(1, math.factorial(n))
+    def __iter__(self) -> Iterator[A]:
+        return iter(self._it)
 
 
 class IterableWrapper(Generic[T]):
-
     def __init__(self, f: Callable[[], Iterator[T]]):
         self._f = f
 
