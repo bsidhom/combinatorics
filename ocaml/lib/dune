@@ -1,0 +1,4 @@
+(library
+ (name combinatorics)
+ (modules_without_implementation series_intf)
+ (libraries zarith))
