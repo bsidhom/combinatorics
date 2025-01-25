@@ -21,10 +21,10 @@ let powerset n fs =
       let sign = if k mod 2 = 0 then Z.(neg one) else Z.one in
       let coefficient = Q.make sign (Z.of_int k) in
       let arg = Series.zpow k in
-      let gs = Series.(coefficient *. compose fs arg) in
+      let gs = Series.(coefficient *. (compose fs arg)) in
       go (k + 1) Series.(acc + gs)
   in
-  let parts = go 1 (Series.zero |> Seq.take n) in
+  let parts = go 1 (Series.zero |> Seq.take (n + 1)) in
   Series.compose (exp n) parts
 
 let multiset _ = failwith "todo"
