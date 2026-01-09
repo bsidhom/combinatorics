@@ -1,4 +1,5 @@
 const main = () => {
+  // for (const p of genPartitions([1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13])) {
   for (const p of genPartitions([1, 2, 3, 4, 5])) {
     console.log(JSON.stringify(p));
   }
