@@ -7,7 +7,9 @@ const main = () => {
   }
 };
 
-// Generates all possible multisets of total size n.
+// Generates all possible multisets of total size n. This assumes that distinct
+// set elements are ordered. If this is not the case, then the "shape" should
+// be determined by integer partitions rather than compositions.
 const genMultisets = function* (n) {
   // A multiset of size n (not-necessarily distinct) can be mapped into a
   // unique dense multiset of the integers in range [1..n], where the order
