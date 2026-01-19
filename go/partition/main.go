@@ -61,7 +61,6 @@ func subPartitions(n int, k int, augmentPartition func(*IndexedPartition)) iter.
 		panic(fmt.Sprintf("n > k: n=%d, k=%d", n, k))
 	}
 	return func(yield func(IndexedPartition) bool) {
-		// fmt.Printf("subPartitions(%d, %d)\n", n, k)
 		switch n {
 		case 0:
 			p := IndexedPartition{partCount: 1, index: []int{0}}
