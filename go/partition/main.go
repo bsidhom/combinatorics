@@ -14,26 +14,29 @@ func main() {
 	if err != nil {
 		panic(err)
 	}
-	for p := range partitions(n) {
+	for p := range Partitions(n) {
 		fmt.Printf("%v\n", p)
 	}
 }
 
-func partitions(n int) iter.Seq[[][]int] {
+// Partitions generates all partitions of the set [1,..n]. The yielded
+// partitions are reused and mutated in-place, so if consumers require long-term
+// access to results, they must be copied first.
+func Partitions(n int) iter.Seq[[][]int] {
 	return func(yield func([][]int) bool) {
 		if n == 0 {
 			yield([][]int{})
 		} else {
+			partition := make([][]int, n)
 			for p := range subPartitions(n-1, n-1, nopAugmentation) {
-				// TODO: Consider reusing memory here.
-				partition := make([][]int, p.partCount)
+				resetSliceSlice(partition)
 				for i := range n {
 					part := p.index[i]
 					// NOTE: The computed indices are zero-based, but we want
 					// to partition the set [1,..n], so we add one.
 					partition[part] = append(partition[part], i+1)
 				}
-				yield(partition)
+				yield(partition[:p.partCount])
 			}
 		}
 	}
@@ -120,6 +123,12 @@ func subPartitions(n int, k int, augmentPartition func(*IndexedPartition)) iter.
 }
 
 func nopAugmentation(p *IndexedPartition) {}
+
+func resetSliceSlice[T any](xss [][]T) {
+	for i := range xss {
+		xss[i] = xss[i][:0]
+	}
+}
 
 type IndexedPartition struct {
 	partCount int
