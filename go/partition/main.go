@@ -29,7 +29,8 @@ func Partitions(n int) iter.Seq[[][]int] {
 		} else {
 			partition := make([][]int, n)
 			p := IndexedPartition{partCount: 0, index: make([]int, 0, n)}
-			for p := range subPartitions(n-1, n-1, &p, nopAugmentation) {
+			pas := &PartitionAugmentationStack{}
+			for p := range subPartitions(n-1, n-1, &p, pas) {
 				for i := range n {
 					part := p.index[i]
 					// NOTE: The computed indices are zero-based, but we want
@@ -52,7 +53,7 @@ func Partitions(n int) iter.Seq[[][]int] {
 // efficient sub-iterators: recursive calls just pass an augmentation function
 // and then consume iterator results directly rather than recursively spawning
 // iterators and then "mapping" them after the fact.
-func subPartitions(n int, k int, p *IndexedPartition, augmentPartition func(*IndexedPartition)) iter.Seq[*IndexedPartition] {
+func subPartitions(n int, k int, p *IndexedPartition, pas *PartitionAugmentationStack) iter.Seq[*IndexedPartition] {
 	// TODO: Consider reusing a single IndexedPartition everywhere and mutating
 	// it in-place. I haven't yet considered whether this is actually feasible,
 	// but it seems likely to be so since we're effectively storing the full
@@ -67,8 +68,7 @@ func subPartitions(n int, k int, p *IndexedPartition, augmentPartition func(*Ind
 		case 0:
 			p.partCount = 1
 			p.index = append(p.index, 0)
-			// p := IndexedPartition{partCount: 1, index: []int{0}}
-			augmentPartition(p)
+			pas.Apply(p)
 			yield(p)
 		default:
 			switch k {
@@ -76,12 +76,9 @@ func subPartitions(n int, k int, p *IndexedPartition, augmentPartition func(*Ind
 				// Item (n+1) resides in a singleton part. Generate _all_
 				// (unrestricted) partitions of [1,..,n] and then form a new
 				// one by appending (n+1) into its own part.
-				subPartitions(n-1, n-1, p, func(p *IndexedPartition) {
-					p.index = append(p.index, p.partCount)
-					p.partCount += 1
-					// Always apply the outer augmentation last.
-					augmentPartition(p)
-				})(yield)
+				pas.Push(AppendSingleton{})
+				subPartitions(n-1, n-1, p, pas)(yield)
+				pas.Pop()
 			default:
 				// Item (n+1) resides in a part with some subset of
 				// [1,..,k]. We split this into 2 cases: the part _does not_
@@ -91,7 +88,7 @@ func subPartitions(n int, k int, p *IndexedPartition, augmentPartition func(*Ind
 				// partitions where (n+1) lives with a subset of [1,..,k-1]. In
 				// other words, we don't need to augment the returned
 				// partitions.
-				subPartitions(n, k-1, p, augmentPartition)(yield)
+				subPartitions(n, k-1, p, pas)(yield)
 
 				// Now we want to generate partitions where the part with (n+1)
 				// _does_ contain k. Remove (n+1) from consideration for a
@@ -108,24 +105,13 @@ func subPartitions(n int, k int, p *IndexedPartition, augmentPartition func(*Ind
 				// subset of [1,..,k-1] (i.e., that subset necessarily contains
 				// neither of these two items, and they are considered
 				// "equivalent").
-				subPartitions(n-1, k-1, p, func(p *IndexedPartition) {
-					// Swap n and k. This is just the relabeling described above.
-					// Note that we use zero-indexing, so we have to adjust n
-					// and k by 1 here.
-					p.index[n-1], p.index[k-1] = p.index[k-1], p.index[n-1]
-					// Now ensure that we place (n+1) into the same (final) part
-					// as k.
-					// NOTE: We do _not_ increment the number of parts.
-					p.index = append(p.index, p.index[k-1])
-					// Run any outer augmentations.
-					augmentPartition(p)
-				})(yield)
+				pas.Push(Swappend{n: n, k: k})
+				subPartitions(n-1, k-1, p, pas)(yield)
+				pas.Pop()
 			}
 		}
 	}
 }
-
-func nopAugmentation(p *IndexedPartition) {}
 
 func resetSliceSlice[T any](xss [][]T) {
 	for i := range xss {
@@ -141,4 +127,43 @@ type IndexedPartition struct {
 func (p *IndexedPartition) Reset() {
 	p.partCount = 0
 	p.index = p.index[:0]
+}
+
+type PartitionAugmentationStack struct {
+	ops []PartitionAugmentation
+}
+
+func (s *PartitionAugmentationStack) Apply(p *IndexedPartition) {
+	for i := (len(s.ops) - 1); i >= 0; i -= 1 {
+		s.ops[i].Apply(p)
+	}
+}
+
+func (s *PartitionAugmentationStack) Push(augmentation PartitionAugmentation) {
+	s.ops = append(s.ops, augmentation)
+}
+
+func (s *PartitionAugmentationStack) Pop() {
+	s.ops = s.ops[:len(s.ops)-1]
+}
+
+type PartitionAugmentation interface {
+	Apply(p *IndexedPartition)
+}
+
+type Swappend struct {
+	n int
+	k int
+}
+
+func (s Swappend) Apply(p *IndexedPartition) {
+	p.index[s.n-1], p.index[s.k-1] = p.index[s.k-1], p.index[s.n-1]
+	p.index = append(p.index, p.index[s.k-1])
+}
+
+type AppendSingleton struct{}
+
+func (as AppendSingleton) Apply(p *IndexedPartition) {
+	p.index = append(p.index, p.partCount)
+	p.partCount += 1
 }
