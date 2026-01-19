@@ -29,7 +29,7 @@ func Partitions(n int) iter.Seq[[][]int] {
 		} else {
 			partition := make([][]int, n)
 			p := IndexedPartition{partCount: 0, index: make([]int, 0, n)}
-			pas := &PartitionAugmentationStack{}
+			pas := &PartitionAugmentationStack{ops: make([]PartitionAugmentation, 0, n)}
 			for p := range subPartitions(n-1, n-1, &p, pas) {
 				for i := range n {
 					part := p.index[i]
