@@ -151,6 +151,9 @@ type PartitionAugmentation interface {
 	Apply(p *IndexedPartition)
 }
 
+// Swap the positions of n and k (really, n-1 and k-1, since it's zero-based)
+// in the given partition and then append n+1 (n) to the partition that contains
+// k (k-1). This is used to transform the A_{n-1,k-1} recurrence.
 type Swappend struct {
 	n int
 	k int
@@ -161,6 +164,9 @@ func (s Swappend) Apply(p *IndexedPartition) {
 	p.index = append(p.index, p.index[s.k-1])
 }
 
+// Append n+1 (n) to its own part (i.e., append a singleton part). We don't have
+// to store an explicit value for n because this is implicit in the given
+// partition.
 type AppendSingleton struct{}
 
 func (as AppendSingleton) Apply(p *IndexedPartition) {
