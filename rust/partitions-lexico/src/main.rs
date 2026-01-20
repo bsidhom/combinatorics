@@ -13,8 +13,9 @@
 // for. This is in contrast to the JavaScript implementation which blows up
 // around n = 13 on my test computer due to memory limits.
 fn main() {
-    // let items: Vec<i32> = vec![1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13];
-    let items: Vec<i32> = vec![1, 2, 3, 4, 5];
+    let args: Vec<_> = std::env::args().collect();
+    let n: usize = args[1].parse().unwrap();
+    let items: Vec<usize> = (1..=n).into_iter().collect();
     gen_partitions(&items[..], |p| {
         println!("{p:?}");
     });

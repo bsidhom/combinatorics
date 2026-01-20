@@ -3,5 +3,5 @@
 version = 4
 
 [[package]]
-name = "partition"
+name = "partitions-bell-triangle"
 version = "0.1.0"
