@@ -27,8 +27,13 @@ where
     }
 }
 
-fn stirling_partitions<F>(n: usize, k: usize, ops: &mut AugmentationStack, ip: &mut IndexedPartition, f: &mut F)
-where
+fn stirling_partitions<F>(
+    n: usize,
+    k: usize,
+    ops: &mut AugmentationStack,
+    ip: &mut IndexedPartition,
+    f: &mut F,
+) where
     F: FnMut(&mut IndexedPartition),
 {
     if n == k {
@@ -43,12 +48,12 @@ where
     } else if k > 0 && k <= n {
         // Put n into a singleton partition.
         ops.push(Augmentation::add_singleton());
-        stirling_partitions(n-1, k-1, ops, ip, f);
+        stirling_partitions(n - 1, k - 1, ops, ip, f);
         ops.pop();
 
         for i in 0..k {
             ops.push(Augmentation::insert_at(i));
-            stirling_partitions(n-1, k, ops, ip, f);
+            stirling_partitions(n - 1, k, ops, ip, f);
             ops.pop();
         }
     }
