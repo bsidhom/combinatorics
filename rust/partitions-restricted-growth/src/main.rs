@@ -5,18 +5,18 @@
 
 // NOTE: I expected this to be the fastest since it does not require any
 // recursion or other nested function calls. Additionally, the tracking data
-// structures are small, simple, and cache-friendly. It appears to be about the
-// same in practice as other implementations for n >= 13. This might be due to
-// debug-printing the IndexedPartition directly rather than showing a
-// vector-of-vectors. However, I specifically chose to render IndexedPartition
-// directly to avoid the translation overhead. In any case, this isn't
-// materially faster than other techniques despite its lack of readability.
+// structures are small, simple, and cache-friendly. It is indeed faster than
+// other techinques, but is still in the same realm.
 
 fn main() {
     let args: Vec<_> = std::env::args().collect();
     let n: usize = args[1].parse().unwrap();
     partitions(n, |ip| {
-        println!("{ip:?}");
+        // NOTE: Debug-printing custom structs is surprisingly expensive (and
+        // also requires more bytes of I/O). For speed, just print the raw
+        // index vector (without translating into parts).
+        let p = &ip.index;
+        println!("{p:?}");
     });
 }
 
@@ -48,7 +48,7 @@ where
     // TODO: Consider rewriting this loop to make it more idiomatic. It
     // currently follows Algorithm H very closely to the point of making it
     // hard to read. For example, the if statement at the end of the core loop
-    // could be made uniform and flattened, at the expense of a few extra 
+    // could be made uniform and flattened, at the expense of a few extra
     // instructions (assuming they don't get optimized away).
     loop {
         // The last element has realized its maximum part index. This means we
@@ -79,11 +79,7 @@ where
             let aj_maxed = ip.index[j] == b[j];
             // b[j] sets the high water mark (incrementing by one if it has
             // reached its potential, otherwise tying).
-            m = if aj_maxed {
-                b[j] + 1
-            } else {
-                b[j]
-            };
+            m = if aj_maxed { b[j] + 1 } else { b[j] };
             j += 1;
             while j < n - 1 {
                 ip.index[j] = 0;
