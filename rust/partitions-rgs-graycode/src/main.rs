@@ -1,6 +1,6 @@
-// This is slightly faster than the lexicographically-ordered restricted growth 
-// string technique despite being more readable _and_ using trait objects when
-// passing recursive closures! Probably the best technique so far on balance.
+// This is only slightly slower than lexicographically-ordered restricted growth
+// strings despite being significantly more readable and leaving lots of
+// performance on the table. Probably the best technique so far on balance.
 
 // TODO: Optimize for memory reuse. For now, this closely follows
 // https://gist.github.com/bsidhom/bd286aa1c3d685da606de64be3594305
