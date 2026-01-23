@@ -17,6 +17,7 @@ where
     F: FnMut(&[usize]),
 {
     let mut f = f;
+    let mut p = Vec::with_capacity(n);
     // Annoyingly, you can't apply an HRTB to the lifetime parameter(s) of an
     // opaque type (impl FnMut here), so we have to wrap it in an identity function.
     // Sadly, this doesn't actually help much because we have to allocate at each
@@ -25,61 +26,65 @@ where
     let mut f = wrap_fn(|_m, p| {
         f(p);
     });
-    rgs_graycode_helper(n, &mut f);
+    rgs_graycode_helper(n, &mut p, &mut f);
 }
 
-fn rgs_graycode_helper(n: usize, f: &mut dyn FnMut(usize, &[usize])) {
+fn rgs_graycode_helper(n: usize, p: &mut Vec<usize>, f: &mut dyn FnMut(usize, &mut Vec<usize>)) {
     // TODO: Figure out how to efficiently modify prefix partitions without
     // generating closures at each level. We're stack-allocating the callback
     // here, but I'm not sure what the representation implications are when
     // this gets converted to a trait object.
+
     if n == 0 {
-        f(0, &[]);
+        p.clear();
+        f(0, p);
     } else if n == 1 {
-        f(0, &[0]);
+        p.clear();
+        p.push(0);
+        f(0, p);
     } else {
         let mut odd = true;
-        let mut f = wrap_fn(|m, prefix| {
+        let mut f = wrap_fn(|m, p| {
             // NOTE: While I would like to use a last-part "iterator" (either
             // as a helper taking a callback or as a proper external iterator),
             // the code is too noisy or bloated to make it worth-while right
             // now. The purpose here is to make the logic as simple as possible
             // to follow.
 
-            // TODO: The easiest performance win is probably to reuse p between
-            // all recursion levels. On the other hand, this isn't as expensive
-            // as it might appear because we only allocate logarithmically in
-            // depth of recursion and reuse the vector when yielding.
-            let mut p = Vec::with_capacity(n);
-            p.extend_from_slice(prefix);
+            // NOTE: Pre-allocating and sharing the `p` vector does make things
+            // faster than creating a fresh one here, but not by as much as you
+            // you might expect. And because allocations only happen once per
+            // level, it matters less as `n` gets larger.
             if odd {
                 p.push(m + 1);
-                f(m + 1, &p);
+                f(m + 1, p);
                 p.pop();
                 for i in (0..=m).rev() {
                     p.push(i);
-                    f(m, &p);
+                    f(m, p);
                     p.pop();
                 }
             } else {
                 for i in 0..=m {
                     p.push(i);
-                    f(m, &p);
+                    f(m, p);
                     p.pop();
                 }
                 p.push(m + 1);
-                f(m + 1, &p);
+                f(m + 1, p);
                 p.pop();
             }
             odd = !odd;
         });
-        rgs_graycode_helper(n - 1, &mut f);
+        rgs_graycode_helper(n - 1, p, &mut f);
     }
 }
 
+// We use this because in-line opaque closures cannot be explicitly typed or
+// given higher-ranked trait bounds (universal lifetime parameters).
 fn wrap_fn<F>(f: F) -> F
 where
-    F: for<'a> FnMut(usize, &'a [usize]),
+    F: for<'a> FnMut(usize, &'a mut Vec<usize>),
 {
     f
 }
