@@ -1,20 +1,17 @@
-// This is only slightly slower than lexicographically-ordered restricted growth
-// strings despite being significantly more readable and leaving lots of
-// performance on the table. Probably the best technique so far on balance.
+// This is a proper Gray code over RGS partitions. I ripped it directly from
+// TAOCP, which discusses the code as developed by Ehrlich. It is essentially
+// the same logic as my code which alternately appends a final part size in
+// ascending or descending order within prefix RGSs, but uses a slightly
+// modified scheme such that the final block index is _always_ 0 or 1. This
+// guarantees that you can always fix the final part while "stepping" the prefix
+// code, ensuring an edit distance of 1. Sadly, I didn't discover this on my own,
+// but it's easy to see why it works once you make that realization. Unlike
+// Knuth in Algorithm H, I use recursion to do iteration (just as in the pseudo
+// Gray code solution) rather than following an iterative, non-recursive flow as
+// in Algorithm H. This makes it simpler to follow in my opinion. I haven't
+// quantified the difference, but for moderate test sizes, this is within about
+// 10% of the performance of Algorithm H.
 
-// NOTE: This is really only a pseudo-Gray code in RGS space. When the final digit is 0, we are
-// guaranteed a Hamming distance of 1 to the next code (since the next prefix code is an edit
-// distance of 1 from the previous and 0 is always a valid block for the final part). However, when
-// the final digit is at its maximum value (possibly but not necessarily in its own partition), the
-// next prefix code may not support such a large block index. In that case, one of the prefix
-// blocks was necessarily collapsed within some prefix partition. This may result in multiple parts
-// in the tail getting relabeled (shifted by one), but still only corresponds to a single element
-// being moved (merged into another block). Similarly, the maximum index of the last part may
-// _increase_ if the prefix tail increased, but similar arguments apply (a single earlier element
-// was split into its own block and the tail was reindexed).
-
-// TODO: Optimize for memory reuse. For now, this closely follows
-// https://gist.github.com/bsidhom/bd286aa1c3d685da606de64be3594305
 fn main() {
     let args: Vec<_> = std::env::args().collect();
     let n = args[1].parse().unwrap();
@@ -54,7 +51,16 @@ fn rgs_graycode_helper(n: usize, p: &mut Vec<usize>, f: &mut dyn FnMut(usize, &m
         p.push(0);
         f(0, p);
     } else {
-        let mut odd = true;
+        // Start at 1 and count up, wrapping to 0 at max value? Otherwise,
+        // start at 0 and count down (immediately wrapping to max value). This
+        // is the scheme used by Ehrlich and described by Knuth when discussing
+        // Gray codes for partition RGS. He doesn't mention it in the text, but
+        // this works because _every_ partition prefix supports a final block of
+        // either 0 or 1. My previous attempt (pseudo-Gray code) did not account
+        // for this and is not actually a valid Gray code within RGS itself,
+        // even if it corresponds to partition edit distances of 1. Moreover,
+        // _neither_ code is cyclic, unfortunately.
+        let mut up = false;
         let mut f = wrap_fn(|m, p| {
             // NOTE: While I would like to use a last-part "iterator" (either
             // as a helper taking a callback or as a proper external iterator),
@@ -66,26 +72,34 @@ fn rgs_graycode_helper(n: usize, p: &mut Vec<usize>, f: &mut dyn FnMut(usize, &m
             // faster than creating a fresh one here, but not by as much as you
             // you might expect. And because allocations only happen once per
             // level, it matters less as `n` gets larger.
-            if odd {
-                p.push(m + 1);
-                f(m + 1, p);
-                p.pop();
-                for i in (0..=m).rev() {
+            if up {
+                for i in 1..=m {
                     p.push(i);
                     f(m, p);
                     p.pop();
                 }
+                p.push(m + 1);
+                f(m + 1, p);
+                p.pop();
+                // Wrap
+                p.push(0);
+                f(m, p);
+                p.pop();
             } else {
-                for i in 0..=m {
+                p.push(0);
+                f(m, p);
+                p.pop();
+                // Wrap
+                p.push(m + 1);
+                f(m + 1, p);
+                p.pop();
+                for i in (1..=m).rev() {
                     p.push(i);
                     f(m, p);
                     p.pop();
                 }
-                p.push(m + 1);
-                f(m + 1, p);
-                p.pop();
             }
-            odd = !odd;
+            up = !up;
         });
         rgs_graycode_helper(n - 1, p, &mut f);
     }
